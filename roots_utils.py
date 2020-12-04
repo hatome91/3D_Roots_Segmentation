@@ -56,14 +56,21 @@ def load_region(filename, dims=(1000, 1000, 1080), block_dims=(100,100,108)):
         
 
 
+def load_slice(filename, dims=(1000,1000,1080)):
+    
+    with open(filename, 'rb') as f:
+        
+        for z in range(dims[2]):
+            img_array = np.fromfile(f, dtype = np.uint16, count=dims[0]*dims[1])
+            img = img_array.reshape(dims[0], dims[1])
+            yield img
 
 
 
 
 
 
-
-def preprocessing(vol, CLAHE=True, BILFIL=(True, 0.4, 3), EDMFIL=(True, 0.20)):
+def preprocessing(vol, CLAHE=True, BILFIL=(True, 0.4, 3), EDMFIL=(True, 0.3)):
     """
     
 
@@ -81,7 +88,7 @@ def preprocessing(vol, CLAHE=True, BILFIL=(True, 0.4, 3), EDMFIL=(True, 0.20)):
         Finally the region is thresholded using Otsu thresholding. The default is (True, 0.4, 3).
     EDMFIL : tuple, optional
         The first component of the tuple is a boolean which indicates wheather an Euclidian Distance Map (EDM) transformation is applied or not.
-        The second component controls the thresholding level of the obtained EDM. The default is (True, 0.25).
+        The second component controls the thresholding level of the obtained EDM. The default is (True, 0.3).
 
     Returns
     -------
@@ -89,73 +96,113 @@ def preprocessing(vol, CLAHE=True, BILFIL=(True, 0.4, 3), EDMFIL=(True, 0.20)):
        Thresholded three dimensional volume.
 
     """
-    # Retrieve the dimensions
-    xdim, ydim, zdim = vol.shape
     
-    out = np.zeros_like(vol,dtype=np.float32)
+    # Check the dimensions of the input
+    if vol.ndim == 3:
     
-    # Loop over the different slices (z direction)
-    for ind in range(zdim):
+        # Retrieve the dimensions
+        xdim, ydim, zdim = vol.shape
+    
+        out = np.zeros_like(vol,dtype=np.float32)
+    
+        # Loop over the different slices (z direction)
+        for ind in range(zdim):
         
-        # Extract a slice
-        src = vol[:,:,ind]
-        
-        if CLAHE:
-            if src.dtype != 'uint8' or src.dtype != 'uint16':
-                src = convert_dtype(src,'uint8')
-            # Applying Contrast Limited Adaptative Histogram Equalization (works with uint8 or uint16)
-            clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
-            src = clahe.apply(src)
+            # Extract a slice
+            src = vol[:,:,ind]
             
-            # Otsu Thresholding (works only with uint8)
-            if src.dtype != 'uint8':
-                src = convert_dtype(src,'uint8')
-            # Otsu Thresholding (only works with uint8)
-            _, src = cv2.threshold(src, 100, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            if CLAHE:
+            
+                src = clahe_thresh(src)
+        
+            if BILFIL[0]:
+            
+                src = bilfil_thresh(src, BILFIL[1], BILFIL[2])
+            
+            if EDMFIL[0]:
+            
+                src = edmfil_thresh(src, EDMFIL[1])
+        
+            # Convert to float32
+            if src.dtype != 'float32':
+                out[:,:,ind] = convert_dtype(src, 'float32')
+            else:
+                out[:,:,ind] = src
+        
+        return out
+    
+    elif vol.ndim == 2:
+        
+        # Retrieve the dimensions
+        xdim, ydim = vol.shape
+                    
+        if CLAHE:
+            
+            vol = clahe_thresh(vol)
         
         if BILFIL[0]:
-            if src.dtype != 'uint8' or src.dtype != 'float32':
-                src = convert_dtype(src,'float32')
-        
-            # Applying bilateral filter (only works with uint8 or float32)
-            src = cv2.bilateralFilter(src, -1, BILFIL[1], BILFIL[2])
-        
-            if src.dtype != 'uint8':
-                # Convert to uint8
-                src = convert_dtype(src, 'uint8')
-        
-            # Otsu Thresholding (only works with uint8)
-            _, src = cv2.threshold(src, 100, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            
+            vol = bilfil_thresh(vol, BILFIL[1], BILFIL[2])
             
         if EDMFIL[0]:
-            if src.dtype != 'uint8':
-                src = convert_dtype(src, 'uint8')
             
-            # Euclidian distance map (works only with uint8)
-            src = cv2.distanceTransform(src, cv2.DIST_L2, maskSize=5)
-        
-            # Normalize the edm for the range (0,1)
-            cv2.normalize(src, src, 0.0, 1.0, cv2.NORM_MINMAX)
-        
-            #Thresholding the edm
-            _, src = cv2.threshold(src, EDMFIL[1], 1.0, cv2.THRESH_BINARY)
+            vol = edmfil_thresh(vol, EDMFIL[1])
         
         # Convert to float32
-        if src.dtype != 'float32':
-            out[:,:,ind] = convert_dtype(src, 'float32')
-        else:
-            out[:,:,ind] = src
+        if vol.dtype != 'float32':
+            return convert_dtype(vol, 'float32')
         
-    return out
+        return vol
 
+def clahe_thresh(src):
+    
+    # Convert to uint8
+    if src.dtype != 'uint8' or src.dtype != 'uint16':
+        src = convert_dtype(src,'uint8')
+    
+    # Applying Contrast Limited Adaptative Histogram Equalization (works with uint8 or uint16)
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+    src = clahe.apply(src)
+            
+    # Otsu Thresholding (works only with uint8)
+    if src.dtype != 'uint8':
+        src = convert_dtype(src,'uint8')
+        
+    # Otsu Thresholding (only works with uint8)
+    _, src = cv2.threshold(src, 100, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    
+    return src
 
+def bilfil_thresh(src, sigmaR, sigmaS):
+    
+    if src.dtype != 'uint8' or src.dtype != 'float32':
+        src = convert_dtype(src,'float32')
+        
+    # Applying bilateral filter (only works with uint8 or float32)
+    src = cv2.bilateralFilter(src, -1, sigmaR, sigmaS)
+    
+    # Convert to uint8
+    if src.dtype != 'uint8':
+        src = convert_dtype(src, 'uint8')
+        
+    # Otsu Thresholding (only works with uint8)
+    _, src = cv2.threshold(src, 100, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return src
 
-
-
-
-
-
-
+def edmfil_thresh(src, thr):
+    
+    if src.dtype != 'uint8':
+        src = convert_dtype(src, 'uint8')
+            
+    # Euclidian distance map (works only with uint8)
+    src = cv2.distanceTransform(src, cv2.DIST_L2, maskSize=5)
+        
+    # Normalize the edm for the range (0,1)
+    cv2.normalize(src, src, 0.0, 1.0, cv2.NORM_MINMAX)
+        
+    #Thresholding the edm
+    _, src = cv2.threshold(src, thr, 1.0, cv2.THRESH_BINARY)
+    return src
 
 def labelling_per_layer(threshs):
     
