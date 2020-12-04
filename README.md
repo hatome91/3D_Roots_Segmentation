@@ -23,6 +23,10 @@ MODULES DESCRIPTION
 * roots_utils.py
   - load_region(): genetor that yields region by region the 3D volume.
   - load_slice(): generator that yields slice by slice the 3D volume.
-  - preprocessing(): function that perform the following operations:
-    + contrast limited adaptive histogram equalization
-    + 
+  - preprocessing(): function that could perform on demand the following operations:
+    + my_clahe(): contrast limited adaptive histogram equalization
+    + bilfil_thresh(): bilateral filter followed by Otsu thresholding
+    + edmfil_thresh(): euclidian distance transformation followed by Otsu thresholding
+  - convert_dtype(): function that converts among the following data types: uint8, uint16, float16, float32, int32
+  - check_bilateral(): function that can be use to check the influence of the sigmaR and sigmaS parameters of the bilateral filter.
+* others
