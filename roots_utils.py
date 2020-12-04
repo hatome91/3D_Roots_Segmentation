@@ -6,14 +6,13 @@ from skimage.segmentation import find_boundaries, watershed
 import pandas as pd
 from skimage.measure import regionprops_table
 
-filename = 'Roots_1000x1000x1080.raw'
 
 def load_region(filename, dims=(1000, 1000, 1080), block_dims=(100,100,108)):
     """        
         Parameters
         ----------
             filename : string
-                Path to the binary raw file containing the data to be loaded.
+                Path to the raw file containing the data (3D volume) to be loaded.
             dims : tuple, optional
                 Tuple with the dimensions of the 3D volume. The default is (1000, 1000, 1080).
             block_dims : tuple, optional
@@ -55,6 +54,14 @@ def load_region(filename, dims=(1000, 1000, 1080), block_dims=(100,100,108)):
                     # Yields a numpy array with dimensions given by block_dims
                     yield np.array(blocks[b1, b2,0,:,:], dtype=np.uint16).reshape(block_dims)
         
+
+
+
+
+
+
+
+
 
 def preprocessing(vol, CLAHE=True, BILFIL=(True, 0.4, 3), EDMFIL=(True, 0.20)):
     """
@@ -141,6 +148,15 @@ def preprocessing(vol, CLAHE=True, BILFIL=(True, 0.4, 3), EDMFIL=(True, 0.20)):
         
     return out
 
+
+
+
+
+
+
+
+
+
 def labelling_per_layer(threshs):
     
     # Retrieve the dimensions
@@ -193,6 +209,16 @@ def labelling_per_layer(threshs):
     labelled = convert_dtype(labelled, 'uint16')
     return labelled
 
+
+
+
+
+
+
+
+
+
+
 def convert_dtype(img, dType):
     """
     
@@ -238,6 +264,17 @@ def convert_dtype(img, dType):
             n = img-np.min(img)
             d = np.max(n)
             return np.array(n/d * np.iinfo(np.int32).max, dtype=np.int32)
+
+
+
+
+
+
+
+
+
+
+
 
 def check_bilateral(src, sigmaR = None, sigmaS = None, fname=None):
     """
@@ -291,23 +328,32 @@ def check_bilateral(src, sigmaR = None, sigmaS = None, fname=None):
         else:
             plt.savefig(fname)
 
+
+
+
+
+
+
+
+
+
+
 def save_to_raw():
     pass
+
+
+
+
+
+
+
+
+
+
+
 
 def labelling3D(thresh):
     
     lab = find_boundaries(thresh, connectivity = thresh.ndim, mode = 'inner', background = 0)
     return watershed(lab, mask=thresh.astype(bool))
-
-from datetime import datetime
-
-
-
-vols = load_region(filename)
-vol = next(vols)
-bil = preprocessing(vol)
-
-t1=datetime.now()
-lab = labelling_per_layer(bil)
-print('labelling_per_layer:', datetime.now()-t1)
 
