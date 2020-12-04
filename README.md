@@ -16,3 +16,8 @@ The tomogram can be visualized in imageJ:
 - num images: 1080
 - gap: 0
 - with little-endian byte order
+
+--------------------
+MODULES DESCRIPTION
+--------------------
+- roots_utils.py
