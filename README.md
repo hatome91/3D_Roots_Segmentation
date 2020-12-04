@@ -20,5 +20,5 @@ The tomogram can be visualized in imageJ:
 --------------------
 MODULES DESCRIPTION
 --------------------
-- roots_utils.py
-  -- load_region()
+-> roots_utils.py
+  - load_region()
