@@ -29,4 +29,4 @@ MODULES DESCRIPTION
     + edmfil_thresh(): euclidian distance transformation followed by Otsu thresholding
   - convert_dtype(): function that converts among the following data types: uint8, uint16, float16, float32, int32
   - check_bilateral(): function that can be use to check the influence of the sigmaR and sigmaS parameters of the bilateral filter.
-* others
+* TO BE CONTINUED
