@@ -13,6 +13,6 @@ The tomogram can be visualized in imageJ:
 - width: 1000 pixels
 - height: 1000 pixels
 - offset: 0 bytes
-- # images: 1080
+- num images: 1080
 - gap: 0
 - with little-endian byte order
