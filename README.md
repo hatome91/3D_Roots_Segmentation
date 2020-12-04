@@ -21,4 +21,8 @@ The tomogram can be visualized in imageJ:
 MODULES DESCRIPTION
 --------------------
 * roots_utils.py
-  - load_region()
+  - load_region(): genetor that yields region by region the 3D volume.
+  - load_slice(): generator that yields slice by slice the 3D volume.
+  - preprocessing(): function that perform the following operations:
+    + contrast limited adaptive histogram equalization
+    + 
