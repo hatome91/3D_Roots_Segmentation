@@ -79,8 +79,7 @@ def preprocessing(vol, CLAHE=True, BILFIL=(True, 0.4, 3), EDMFIL=(True, 0.3)):
     vol : numpy array
         Three dimensional volume to be processed.
     CLAHE : boolean, optional
-        If True, then a Contrast Limited Adaptative Histogram Equalization operation is performed. 
-        Finally the region is thresholded using Otsu thresholding. The default is True.
+        If True, then a Contrast Limited Adaptive Histogram Equalization operation is performed. The default is True.
     BILFIL : tuple, optional
         The first component of the tuple is a boolean which indicates wheather a bilateral filter will be applied or not. 
         If True, then a bilateral filter is applied with the values given in the second and third components of the tuple.
@@ -113,7 +112,7 @@ def preprocessing(vol, CLAHE=True, BILFIL=(True, 0.4, 3), EDMFIL=(True, 0.3)):
             
             if CLAHE:
             
-                src = clahe_thresh(src)
+                src = my_clahe(src)
         
             if BILFIL[0]:
             
@@ -138,7 +137,7 @@ def preprocessing(vol, CLAHE=True, BILFIL=(True, 0.4, 3), EDMFIL=(True, 0.3)):
                     
         if CLAHE:
             
-            vol = clahe_thresh(vol)
+            vol = my_clahe(vol)
         
         if BILFIL[0]:
             
@@ -154,7 +153,7 @@ def preprocessing(vol, CLAHE=True, BILFIL=(True, 0.4, 3), EDMFIL=(True, 0.3)):
         
         return vol
 
-def clahe_thresh(src):
+def my_clahe(src):
     
     # Convert to uint8
     if src.dtype != 'uint8' or src.dtype != 'uint16':
@@ -163,14 +162,7 @@ def clahe_thresh(src):
     # Applying Contrast Limited Adaptative Histogram Equalization (works with uint8 or uint16)
     clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
     src = clahe.apply(src)
-            
-    # Otsu Thresholding (works only with uint8)
-    if src.dtype != 'uint8':
-        src = convert_dtype(src,'uint8')
-        
-    # Otsu Thresholding (only works with uint8)
-    _, src = cv2.threshold(src, 100, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    
+                   
     return src
 
 def bilfil_thresh(src, sigmaR, sigmaS):
@@ -304,6 +296,7 @@ def convert_dtype(img, dType):
     
     elif dType == 'float32':
         return np.array(img/np.iinfo(img.dtype).max, dtype=np.float32)
+        
     elif dType == 'int32':
         if img.dtype != 'float32' and img.dtype != 'float16':
             return np.array(img/np.iinfo(img.dtype).max * np.iinfo(np.int32).max, dtype=np.int32)
