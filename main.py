@@ -16,11 +16,11 @@ import os
 # Global variable
 ######################
 
-pathToFile = '/home/fatome/Downloads/Roots_1000x1000x1080.raw'
-dims = (1000,1000,1080)
-subdims = (100,100,108)
-nblock = np.divide(dims, subdims).astype(np.int8)
-saveto = 'thresh.raw'
+pathToFile = '/home/fatome/GitHub_Repos/3D_Roots_Segmentation/Tomo/Beans_Small_Real_Soil.raw'
+dims = (1610,1610,1376)
+subdims = (115,115,86)
+nblock = np.divide(dims, subdims).astype(np.int)
+saveto = 'Tomo/Real_Soil_thresh.raw'
 
 
 ###################################
@@ -35,41 +35,45 @@ if os.path.exists(saveto):
 ######################
 if __name__ == '__main__':
     
-    imgGen = ru.load_slice(pathToFile, dims)
+    # imgGen = ru.load_slice(pathToFile, dims)
     
-    for i, img in enumerate(imgGen):
-        continue
-    print(i+1)
+    # for i, img in enumerate(imgGen):
+    #     continue
+    # print(i+1)
     
     
-    # volGen = ru.load_region(pathToFile, dims, subdims)
+    volGen = ru.load_region(pathToFile, dims, subdims)
     
-    # block = np.zeros((dims[0], dims[1], subdims[2]))
+    block = np.zeros((dims[0], dims[1], subdims[2]))
     
-    # row = 0
-    # col = 0
+    row = 0
+    col = 0
     
-    # for n, vol in enumerate(volGen):
+    for n, vol in enumerate(volGen):
         
-    #     thresh = ru.preprocessing(vol)
+        print('Processing block', n, 'out of ', nblock[0]*nblock[1]*nblock[2])
+        thresh = ru.preprocessing(vol)
         
-    #     if n % nblock[2] != 0 or col == 0:
-    #         block[row*subdims[0]:(row+1)*subdims[0], col*subdims[1]:(col+1)*subdims[1], :] = thresh
-    #         col += 1
-    #     else:
-    #         row += 1
-    #         col = 0
-    #         block[row*subdims[0]:(row+1)*subdims[0], col*subdims[1]:(col+1)*subdims[1], :] = thresh
-    #         col += 1
+        print('Arranging the blocks into a consistent volume')
+        if n % nblock[1] != 0 or col == 0:
+            block[row*subdims[0]:(row+1)*subdims[0], col*subdims[1]:(col+1)*subdims[1], :] = thresh
+            col += 1
+        else:
+            row += 1
+            col = 0
+            block[row*subdims[0]:(row+1)*subdims[0], col*subdims[1]:(col+1)*subdims[1], :] = thresh
+            col += 1
         
-    #     if (n + 1) % subdims[0] * subdims[1] == 0:
-    #         block = np.swapaxes(block, 0, 1)
-    #         block = np.swapaxes(block, 0, 2)
-    #         with open(saveto,'ab') as f:
-    #             f.write(block.astype('H').tostring())
-    #         break
-    #         block = np.zeros((dims[0], dims[1], subdims[2]))
-    #         row = 0
-    #         col = 0
+        if (n + 1) % (nblock[0]*nblock[1]) == 0:
+            plt.imshow(block[:,:,0],cmap='gray')
+            plt.show()
+            print('Saving to binary file')
+            block = np.swapaxes(block, 0, 1)
+            block = np.swapaxes(block, 0, 2)
+            with open(saveto,'ab') as f:
+                f.write(block.astype('H').tostring())
+            block = np.zeros((dims[0], dims[1], subdims[2]))
+            row = 0
+            col = 0
         
         
