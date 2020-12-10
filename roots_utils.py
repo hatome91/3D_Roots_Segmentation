@@ -21,7 +21,7 @@ def load_region(filename, dims=(1000, 1000, 1080), block_dims=(100,100,108)):
         Yields
         ------
             numpy array uint16
-                3D volume with dimensions block_dims.
+                3D volume with shape block_dims.
     """
 
     with open(filename, 'rb') as f:
@@ -57,13 +57,28 @@ def load_region(filename, dims=(1000, 1000, 1080), block_dims=(100,100,108)):
 
 
 def load_slice(filename, dims=(1000,1000,1080)):
+    """
+    
+
+    Parameters
+    ----------
+        filename : string
+            Path to the raw file containing the data (3D volume) to be loaded.
+        dims : tuple, optional
+            Tuple with the dimensions of the 3D volume. The default is (1000, 1000, 1080).
+
+    Yields
+    ------
+        numpy array uint16
+            Slice of the 3D volume with shape (dims[0], dims[1])
+
+    """
     
     with open(filename, 'rb') as f:
         
         for z in range(dims[2]):
             img_array = np.fromfile(f, dtype = np.uint16, count=dims[0]*dims[1])
-            img = img_array.reshape(dims[0], dims[1])
-            yield img
+            yield img_array.reshape(dims[0], dims[1])
 
 
 
@@ -167,18 +182,18 @@ def my_clahe(src):
 
 def bilfil_thresh(src, sigmaR, sigmaS):
     
-    if src.dtype != 'uint8' or src.dtype != 'float32':
+    if src.dtype != 'float32':
         src = convert_dtype(src,'float32')
         
     # Applying bilateral filter (only works with uint8 or float32)
     src = cv2.bilateralFilter(src, -1, sigmaR, sigmaS)
     
-    # Convert to uint8
-    if src.dtype != 'uint8':
-        src = convert_dtype(src, 'uint8')
+    # # Convert to uint8
+    # if src.dtype != 'uint8':
+    #     src = convert_dtype(src, 'uint8')
         
-    # Otsu Thresholding (only works with uint8)
-    _, src = cv2.threshold(src, 100, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    # # Otsu Thresholding (only works with uint8)
+    # _, src = cv2.threshold(src, 100, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     return src
 
 def edmfil_thresh(src, thr):
@@ -378,8 +393,9 @@ def check_bilateral(src, sigmaR = None, sigmaS = None, fname=None):
 
 
 
-def save_to_raw():
-    pass
+def save_to_raw(saveto, vol):
+    with open(saveto,'ab') as f:
+        f.write(vol.astype('H').tostring())
 
 
 
