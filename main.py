@@ -17,12 +17,13 @@ import cv2
 # Global variable
 ######################
 
-pathToFile = '/home/fatome/GitHub_Repos/3D_Roots_Segmentation/Tomo/Beans_Small_Real_Soil.raw'
-pathToMask = '/home/fatome/GitHub_Repos/3D_Roots_Segmentation/mask.png'
+pathToFile = '/nishome/harol/Documents/GitHub_Repos/3D_Roots_Segmentation/Tomo/Beans_Small_Real_Soil.raw'
+pathToMask = '/nishome/harol/Documents/GitHub_Repos/3D_Roots_Segmentation/mask.png'
 dims = (1610,1610,1376)
 subdims = (115,115,86)
 nblock = np.divide(dims, subdims).astype(np.int)
 saveto = 'Tomo/Real_Soil_thresh_Slices.raw'
+edgeThreshFactor = 0.98
 
 #####################
 # Slices to be shown
@@ -53,31 +54,21 @@ mask = (np.array(mask)/255).astype(np.uint8)
 ######################
 if __name__ == '__main__':
     
-    # imgGen = ru.load_slice(pathToFile, dims)
     
-    # for i, img in enumerate(imgGen):
-    #     continue
-    # print(i+1)
+    thr = ru.check_threshold(pathToFile, dims, pathToMask=pathToMask, edgeThreshFactor=edgeThreshFactor)
+    
     
     imgGen = ru.load_slice(pathToFile, dims)
     
+    
     for n, img in enumerate(imgGen):
-        if n == 464:
-            plt.imsave('Slice_'+ str(n) + '.png', img * mask, cmap='gray')
+        
+        out = ru.img_processing(img, thr, mask, edgeThreshFactor=edgeThreshFactor)
+        ru.save_to_raw(saveto, out)
+        
+        if n==400:
             break
             
-        # thresh = ru.preprocessing(img)
-        # ru.save_to_raw(saveto, thresh)
-        
-        
-        # if n % sl[0] == 0 and n != 0:
-        #     plt.imsave('Tomo/Slice_' + str(n) + '.png', img, cmap='gray')
-        #     plt.imsave('Tomo/Thresh_' + str(n) + '.png', thresh, cmap='gray')
-        #     sl.pop(0)
-        # if n % 100 == 0 and n!= 0:
-        #     break
-    
-    
     
     # volGen = ru.load_region(pathToFile, dims, subdims)
     
@@ -105,8 +96,6 @@ if __name__ == '__main__':
     #         plt.imshow(block[:,:,0],cmap='gray')
     #         plt.show()
     #         print('Saving to binary file')
-    #         block = np.swapaxes(block, 0, 1)
-    #         block = np.swapaxes(block, 0, 2)
     #         ru.save_to_raw(saveto, block)
     #         block = np.zeros((dims[0], dims[1], subdims[2]))
     #         row = 0

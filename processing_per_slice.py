@@ -18,19 +18,21 @@ from skimage.measure import label, regionprops_table
 import pandas as pd
 from skimage.color import label2rgb
 
-t0 = dt.now()
-
 
 ######################
 # Global variable
 ######################
 
-pathToFile = '/home/fatome/GitHub_Repos/3D_Roots_Segmentation/1_ori.png'
+pathToFile = '/home/fatome/GitHub_Repos/3D_Roots_Segmentation/Tomo/Beans_Small_Real_Soil.raw'
 pathToMask = '/home/fatome/GitHub_Repos/3D_Roots_Segmentation/mask.png'
 dims = (1610,1610,1376)
 subdims = (115,115,86)
 nblock = np.divide(dims, subdims).astype(np.int)
 saveto = 'Tomo/Real_Soil_thresh_Slices.raw'
+
+
+t0=dt.now()
+
 
 #####################
 # Slices to be shown

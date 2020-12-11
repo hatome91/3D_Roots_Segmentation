@@ -1,10 +1,16 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
+
 import cv2
+
 from skimage.util.shape import view_as_blocks
 from skimage.segmentation import find_boundaries, watershed
-import pandas as pd
-from skimage.measure import regionprops_table
+from skimage.measure import regionprops_table, label
+from skimage.util import invert
+from skimage.filters import threshold_multiotsu, sobel
+from skimage.morphology import disk, binary_dilation
+from skimage.color import label2rgb
 
 
 def load_region(filename, dims=(1000, 1000, 1080), block_dims=(100,100,108)):
@@ -12,11 +18,14 @@ def load_region(filename, dims=(1000, 1000, 1080), block_dims=(100,100,108)):
         Parameters
         ----------
             filename : string
-                Path to the raw file containing the data (3D volume) to be loaded.
+                Path to the raw file containing the data (3D volume) to be 
+                loaded.
             dims : tuple, optional
-                Tuple with the dimensions of the 3D volume. The default is (1000, 1000, 1080).
+                Tuple with the dimensions of the 3D volume. The default is 
+                (1000, 1000, 1080).
             block_dims : tuple, optional
-                Tuple with the dimensions of the small regions that will be yieled. The default is (100,100,108).
+                Tuple with the dimensions of the small regions that will be 
+                yieled. The default is (100,100,108).
             
         Yields
         ------
@@ -65,7 +74,8 @@ def load_slice(filename, dims=(1000,1000,1080)):
         filename : string
             Path to the raw file containing the data (3D volume) to be loaded.
         dims : tuple, optional
-            Tuple with the dimensions of the 3D volume. The default is (1000, 1000, 1080).
+            Tuple with the dimensions of the 3D volume. The default is 
+            (1000, 1000, 1080).
 
     Yields
     ------
@@ -85,7 +95,7 @@ def load_slice(filename, dims=(1000,1000,1080)):
 
 
 
-def preprocessing(vol, CLAHE=True, BILFIL=(True, 0.4, 3), EDMFIL=(True, 0.3)):
+def preprocessing(vol, CLAHE=True, BILFIL=(True, 0.4, 3, True), EDMFIL=(True, 0.3, True)):
     """
     
 
@@ -94,15 +104,22 @@ def preprocessing(vol, CLAHE=True, BILFIL=(True, 0.4, 3), EDMFIL=(True, 0.3)):
     vol : numpy array
         Three dimensional volume to be processed.
     CLAHE : boolean, optional
-        If True, then a Contrast Limited Adaptive Histogram Equalization operation is performed. The default is True.
+        If True, then a Contrast Limited Adaptive Histogram Equalization 
+        operation is performed. The default is True.
     BILFIL : tuple, optional
-        The first component of the tuple is a boolean which indicates wheather a bilateral filter will be applied or not. 
-        If True, then a bilateral filter is applied with the values given in the second and third components of the tuple.
-        The 2nd and 3rd components represent the sigma_range and sigma_spatial of the bilateral filter respectively. 
-        Finally the region is thresholded using Otsu thresholding. The default is (True, 0.4, 3).
+        The first component of the tuple is a boolean which indicates wheather 
+        a bilateral filter will be applied or not.  If True, then a bilateral 
+        filter is applied with the values given in the second and third 
+        components of the tuple. The 2nd and 3rd components represent the 
+        sigma_range and sigma_spatial of the bilateral filter respectively. 
+        Finally the region is thresholded using Otsu thresholding, if the 4th 
+        component is True. The default is (True, 0.4, 3, True).
     EDMFIL : tuple, optional
-        The first component of the tuple is a boolean which indicates wheather an Euclidian Distance Map (EDM) transformation is applied or not.
-        The second component controls the thresholding level of the obtained EDM. The default is (True, 0.3).
+        The first component of the tuple is a boolean which indicates wheather
+        an Euclidian Distance Map (EDM) transformation is applied or not. The 
+        second component controls the thresholding level of the obtained EDM.
+        This thresholding is applied if the 3rd component is True. The default
+        is (True, 0.3, True).
 
     Returns
     -------
@@ -180,7 +197,7 @@ def my_clahe(src):
                    
     return src
 
-def bilfil_thresh(src, sigmaR, sigmaS):
+def bilfil_thresh(src, sigmaR, sigmaS, applyThresh = True):
     
     if src.dtype != 'float32':
         src = convert_dtype(src,'float32')
@@ -188,15 +205,17 @@ def bilfil_thresh(src, sigmaR, sigmaS):
     # Applying bilateral filter (only works with uint8 or float32)
     src = cv2.bilateralFilter(src, -1, sigmaR, sigmaS)
     
-    # # Convert to uint8
-    # if src.dtype != 'uint8':
-    #     src = convert_dtype(src, 'uint8')
+    # Convert to uint8
+    if applyThresh:
+        if src.dtype != 'uint8':
+            src = convert_dtype(src, 'uint8')
         
-    # # Otsu Thresholding (only works with uint8)
-    # _, src = cv2.threshold(src, 100, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        # Otsu Thresholding (only works with uint8)
+        _, src = cv2.threshold(src, 100, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    
     return src
 
-def edmfil_thresh(src, thr):
+def edmfil_thresh(src, thr, applyThresh = True):
     
     if src.dtype != 'uint8':
         src = convert_dtype(src, 'uint8')
@@ -208,7 +227,8 @@ def edmfil_thresh(src, thr):
     cv2.normalize(src, src, 0.0, 1.0, cv2.NORM_MINMAX)
         
     #Thresholding the edm
-    _, src = cv2.threshold(src, thr, 1.0, cv2.THRESH_BINARY)
+    if applyThresh:
+        _, src = cv2.threshold(src, thr, 1.0, cv2.THRESH_BINARY)
     return src
 
 def labelling_per_layer(threshs):
@@ -264,15 +284,6 @@ def labelling_per_layer(threshs):
     return labelled
 
 
-
-
-
-
-
-
-
-
-
 def convert_dtype(img, dType):
     """
     
@@ -323,28 +334,26 @@ def convert_dtype(img, dType):
 
 
 
-
-
-
-
-
-
-
-
 def check_bilateral(src, sigmaR = None, sigmaS = None, fname=None):
     """
-    
+    BEFORE PROCESSING THE ENTIRE VOLUME IT IS RECOMMENDED TO OBTAIN THE OPTIMAL
+    PARAMETERS FOR APPLYING BILATERAL FILTER, I.E., SIGMA_R AND SIGMA_S. THIS
+    FUNCTION COMPUTES DIFFERENT COMBINATIONS OF SUCH PARAMETERS
 
     Parameters
     ----------
     src : numpy array. 
         Image for applying the bilateral filter.
     sigmaR : array, optional
-        Values for checking the sigma_range part of the bilateral filter. The default is None.
+        Values for checking the sigma_range part of the bilateral filter. The 
+        default is None.
     sigmaS : array, optional
-        Values for checking the sigma_spatial part of the bilater filter. The default is None.
+        Values for checking the sigma_spatial part of the bilater filter. The 
+        default is None.
     fname : string, optional
-        Path contating a name for saving the image with different sigmaR and sigmaS. If the path does not contains an extension, png is automatically assigned. The default is None.
+        Path contating a name for saving the image with different sigmaR and 
+        sigmaS. If the path does not contains an extension, png is 
+        automatically assigned. The default is None.
 
     Returns
     -------
@@ -384,28 +393,28 @@ def check_bilateral(src, sigmaR = None, sigmaS = None, fname=None):
             plt.savefig(fname)
 
 
-
-
-
-
-
-
-
-
-
 def save_to_raw(saveto, vol):
+    """
+    THIS FUNCTION SAVE THE INFORMATION CONTAINED IN vol TO A BINARY RAW FILE
+
+    Parameters
+    ----------
+    saveto : string
+        Full path pointing to the file on which vol will be save.
+    vol : numpy array
+        Data to be save, it should be a 2D or 3D numpy array.
+
+    Returns
+    -------
+    None.
+
+    """
+    if len(vol.shape) == 3:
+        vol = np.swapaxes(vol, 0, 1)
+        vol = np.swapaxes(vol, 0, 2)
+    
     with open(saveto,'ab') as f:
         f.write(vol.astype('H').tostring())
-
-
-
-
-
-
-
-
-
-
 
 
 def labelling3D(thresh):
@@ -413,3 +422,270 @@ def labelling3D(thresh):
     lab = find_boundaries(thresh, connectivity = thresh.ndim, mode = 'inner', background = 0)
     return watershed(lab, mask=thresh.astype(bool))
 
+
+
+def check_threshold(pathToFile, dims, minArea=150, Slice=None, sigmaR=0.4, sigmaS=3, pathToMask=None, edgeThreshFactor=0.9, imgThreshFactor=0.9):
+    """
+    BEFORE STARING PROCESSING THE ENTIRE VOLUME IT IS RECOMMENDED TO CHECK ON A
+    TEST IMAGE THAT THE LABELLING IS CORRECTLY DONE. THIS FUNCTIONS CARRIES OUT
+    SUCH CHECKING AND SAVE ALL THE INTERMEDIATE IMAGES.
+
+    Parameters
+    ----------
+    pathToFile : str
+        Path to the raw file containing the data (3D volume) to be loaded..
+    dims : tuple
+        Tuple with the dimensions of the 3D volume. The default is 
+        (1000, 1000, 1080).
+    minArea : int
+        Integer defining the minimum area that the detected regions within the 
+        image should have, not to be considered noise. The default is 150.
+    Slice : int, optional
+        Integer defning a specific slice of the 3D volume to be analised and 
+        obtain the optimal threshold values for binirising. If not number is 
+        given, a slice in the middle of the volume is analised.
+    sigmaR : TYPE, optional
+        Sigma_range part of the bilater filter. The default is 0.4.
+    sigmaS : int, optional
+        Sigma_spatial part of the bilater filter. The default is 3.
+    pathToMask : str, optional
+        Path to a black and white image, enclosing in white the region of 
+        interest. The default is None.
+    edgeThreshFactor : int, optional
+        It controls how much the edges found using sobel can penetrate the 
+        detected regions. The default is 0.9.
+    imgThreshFactor : int, optional
+        The optimal thresholds can be incresed/decreased by this factor. 
+        Sometimes this helps to better account for smaller fine details. The 
+        default is 0.9.
+
+    Returns
+    -------
+    thr : tuple
+        Threshold values for binarising the image for the len(thr) classes 
+        found.
+
+    """
+        
+    if Slice == None:
+        Slice = int(dims[2] /2)
+    
+    imgGen = load_slice(pathToFile, dims)
+    
+    
+            
+    for n, img in enumerate(imgGen):
+        
+        if n % Slice == 0 and n != 0:
+            
+            # Load the mask and use it to select the region of interest within the image
+            if pathToMask != None:
+                
+                mask = cv2.imread(pathToMask, 0)
+                mask = (np.array(mask) / 255).astype(np.uint8)
+                img = img * mask
+            else:
+                mask = np.ones_like(img)
+            
+            plt.imsave('00_Slice_' + str(n) + '.png', img, cmap='gray')
+            
+            thr, imgC, imgB = get_multiotsu_thresholds(img, sigmaR, sigmaS, False)
+            
+            # Contrast Limited Adaptive Histogram Equalization
+            plt.imsave('01_CLAHE_' + str(n) + '.png', imgC, cmap='gray')
+            
+            # Bilateral filter
+            plt.imsave('02_BilFilt_' + str(n) + '.png', imgB, cmap='gray')
+            
+            # Edge detection
+            imgEdges = sobel(imgB, mask = mask.astype(bool))
+            plt.imsave('03_Sobel_' + str(n) + '.png', imgEdges, cmap='gray')
+            imgEdges_Inv = invert(imgEdges)
+            plt.imsave('04_Sobel_Iverted_' + str(n) + '.png', imgEdges_Inv, cmap='gray')
+            
+            # Binarising and setting the edges to black and the background to white
+            imgBlackEdges = np.zeros_like(img)
+            imgBlackEdges[imgEdges_Inv > edgeThreshFactor * np.max(imgEdges_Inv)] = 1
+            plt.imsave('05_Binary_Black_Edges_' + str(n) + '.png', imgBlackEdges, cmap='gray')
+            
+            
+            # Thresholding the image for the highest class
+            imgThresh = np.zeros_like(imgB)
+            imgThresh[imgB > thr[-1] * imgThreshFactor] = 1
+            plt.imsave('06_Thresholded_Image_' + str(n) + '.png', imgThresh, cmap='gray')
+            
+            # Dilating the image
+            kernel = disk(3)
+            imgThresh = binary_dilation(imgThresh, selem = kernel)
+            plt.imsave('07_Dilated_' + str(n) + '.png', imgThresh, cmap='gray')
+            
+            # Combining the information from the dilate and the edges images
+            out = imgThresh * imgBlackEdges
+            plt.imsave('08_Disconnected_' + str(n) + '.png', out, cmap='gray')
+            outLabel = label(out, connectivity = 2)
+            plt.imsave('09_Disconnected_Labelled_' + str(n) + '.png', outLabel, cmap='gray')
+            
+            # Obtaining the properties of the found regions/objects
+            props = pd.DataFrame(regionprops_table(outLabel, properties = ('label', 'area')))
+            
+            # Regions with area smaller than the predifined minArea are not considered
+            area = props[props['area'] > minArea]
+            
+            # Generating the image with the valid regions
+            outLabel_Valid = np.zeros_like(img)
+            for lab in area['label']:
+                outLabel_Valid[outLabel == lab] = lab
+            
+            outLabel_Valid = label2rgb(outLabel_Valid, imgB, bg_label=-1)
+            plt.imsave('10_Labelled_Valid_' + str(n) + '.png', outLabel_Valid)
+            
+            return thr
+    
+    
+def get_multiotsu_thresholds(img, sigmaR=0.4, sigmaS=3, threshbilfil=False):
+    """
+    
+    BEFORE STARING PROCESSING THE ENTIRE VOLUME IT IS RECOMMENDED TO OBTAIN THE
+    OPTIMAL PARAMETERS FOR BINIRISING THE IMAGE. THIS FUNCTION, RETURNS THE 
+    OPTIMAL THRESHOLD FOR THE DIFFERENT DETECTED CLASSES WITHIN A TEST 
+    IMAGE/SLICE
+
+    Parameters
+    ----------
+    img : 2D numpy array
+        Representative image from where the thresholds will be computed.
+    sigmaR : TYPE, optional
+        Sigma_range part of the bilater filter. The default is 0.4.
+    sigmaS : int, optional
+        Sigma_spatial part of the bilater filter. The default is 3.
+
+    Returns
+    -------
+    thr : tuple
+        Threshold values for binarising the image for the len(thr) classes 
+        found.
+    imgC : 2D numpy array
+        Image after Contrast Limited Adaptive Histogram Equalization.
+    imgB : 2D numpy array
+        Image after Contrast Limited Adaptive Histogram Equalization and 
+        Bilateral filter.
+
+    """
+    
+    # Contrast Limited Adaptive Histogram Equalization
+    clahe = cv2.createCLAHE(clipLimit = 3.0, tileGridSize = (8, 8))
+    imgC = clahe.apply(img)
+        
+    # Bilateral filter
+    imgB = bilfil_thresh(imgC, sigmaR, sigmaS, False)
+    
+    dims = imgB.shape
+    # Computing the threshold for image thresholding via multi-otsu
+    thr = threshold_multiotsu(imgB[int(dims[1] / 3):int(2 * dims[1] / 3), int(dims[0] / 3):int(2 * dims[0] / 3)], nbins=300)
+     
+    return thr, imgC, imgB
+
+
+
+def img_processing(img, thr, mask, minArea=150, edgeThreshFactor=0.9, imgThreshFactor=0.9):
+    """
+    THIS FUNCTION APPLIES THE FOLLOWING OPERATIONS IN ORDER TO SEGMENT AND 
+    IMAGE:
+        - CLAHE
+        - BILATERAL FILTER
+        - SOBEL EDGE DETECTION
+        - INVERTS OUTPUT FROM SOBEL EDGE DETECTION
+        - BINARISES INVERTED SOBEL
+        - BINARISES THE BILATERAL FILTERED IMAGE
+        - DILATES THE BINARISED IMAGE
+        - MULTIPLIES THE DILATED IMAGE WITH THE BINARISED INVERTED SOBEL IMAGE
+        - LABELS THE PREVIOUS IMAGE
+        - OBTAINS THE PROPERTIES OF THE LABEL REGIONS
+        - DROPS REGIONS WITH SMALLER AREAN THAN A PREDIFINED THRESHOLD
+        - CREATES A BINARY IMAGE CONTAINING THE REMAINING VALID REGIONS
+
+    Parameters
+    ----------
+    img : 2D numpy array
+        Image to be analised.
+    thr : int
+        Threshold for binirising the image with respect to a certain class.
+    mask : 2D numpy array
+        Black and white image, enclosing in white the region of interest.
+    minArea : int, optional
+        Integer defining the minimum area that the detected regions within the 
+        image should have, not to be considered noise. The default is 150.
+    edgeThreshFactor : int, optional
+        It controls how much the edges found using sobel can penetrate the 
+        detected regions. The default is 0.9.
+    imgThreshFactor : int, optional
+        The optimal thresholds can be incresed/decreased by this factor. 
+        Sometimes this helps to better account for smaller fine details. The 
+        default is 0.9.
+
+    Returns
+    -------
+    out_Valid : 2D numpy array
+        Thresholded binary image containing just valid regions, according to 
+        the minArea criteria.
+
+    """
+    img = img * mask
+    
+    # Edge detection
+    imgEdges = sobel(img, mask = mask.astype(bool))
+    imgEdges_Inv = invert(imgEdges)
+        
+    # Binarising and setting the edges to black and the background to white
+    imgBlackEdges = np.zeros_like(img)
+    imgBlackEdges[imgEdges_Inv > edgeThreshFactor * np.max(imgEdges_Inv)] = 1
+        
+       
+    # Thresholding the image for the highest class
+    imgThresh = np.zeros_like(img)
+    imgThresh[img>thr[-1] * imgThreshFactor] = 1
+        
+    # Dilating the image
+    kernel = disk(3)
+    imgThresh = binary_dilation(imgThresh, selem = kernel)
+        
+    # Combining the information from the dilate and the edges images
+    out = imgThresh * imgBlackEdges
+    outLabel = label(out, connectivity = 2)
+        
+    # Obtaining the properties of the found regions/objects
+    props = pd.DataFrame(regionprops_table(outLabel, properties = ('label', 'area')))
+        
+    # Regions with area smaller than the predifined minArea are not considered
+    area = props[props['area']>minArea]
+        
+    # Generating the image with the valid regions
+    out_Valid = np.zeros_like(img)
+    for lab in area['label']:
+        out_Valid[outLabel == lab] = 1
+    
+    return out_Valid
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
